@@ -56,22 +56,34 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 		continue
 	}
 
-	$activity = $existingActivity ? ($existingActivity | Get-MvpActivity) : $(
-		$newMvpActivityParams = @{
-			Title               = $activityTitle
-			Type                = 'Open Source/Project/Sample code/Tools'
-			TechnologyFocusArea = $USING:TechnologyFocusArea
-			TargetAudience      = 'Developer', 'IT Pro'
-			Description         = $repo.description ?? 'No description provided.'
-			Date                = $repo.pushed_at
-			EndDate             = $repo.pushed_at
-			Quantity            = 1
-			Reach               = $repo.stargazers_count
-		}
-		$newActivity = New-MvpActivity @newMvpActivityParams
-		$newActivity.url = $repo.url
-		$newActivity
-	)
+  $activity = $existingActivity ? ($existingActivity | Get-MvpActivity) : $(
+    $newMvpActivityParams = @{
+      Title               = $activityTitle
+      Type                = 'Open Source/Project/Sample code/Tools'
+      TechnologyFocusArea = $USING:TechnologyFocusArea
+      TargetAudience      = 'Developer', 'IT Pro'
+      Description         = $repo.description ?? 'No description provided.'
+      Date                = $repo.pushed_at
+      EndDate             = $repo.pushed_at
+      Quantity            = 1
+      Reach               = $repo.stargazers_count
+    }
+    $newActivity = New-MvpActivity @newMvpActivityParams
+    # Create a custom object with the url property
+    $newActivity = [PSCustomObject]@{
+      Title               = $newActivity.Title
+      Type                = $newActivity.Type
+      TechnologyFocusArea = $newActivity.TechnologyFocusArea
+      TargetAudience      = $newActivity.TargetAudience
+      Description         = $newActivity.Description
+      Date                = $newActivity.Date
+      EndDate             = $newActivity.EndDate
+      Quantity            = $newActivity.Quantity
+      Reach               = $newActivity.Reach
+      Url                 = $repo.url
+    }
+    $newActivity
+  )
 
 	if ($existingActivity) {
 		#Workaround for whatif not working as it is supposed to in parallel
