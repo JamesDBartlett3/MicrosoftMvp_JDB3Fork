@@ -71,19 +71,11 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
       Reach               = $repo.stargazers_count
     }
     $newActivity = New-MvpActivity @newMvpActivityParams
-    # Create a custom object with the url property
-    $newActivity = [PSCustomObject]@{
-      Title               = $newActivity.Title
-      Type                = $newActivity.Type
-      TechnologyFocusArea = $newActivity.TechnologyFocusArea
-      TargetAudience      = $newActivity.TargetAudience
-      Description         = $newActivity.Description
-      Date                = $newActivity.Date
-      EndDate             = $newActivity.EndDate
-      Quantity            = $newActivity.Quantity
-      Reach               = $newActivity.Reach
-      Url                 = $repo.url
-    }
+    # Dynamically copy all existing properties and add the Url property 
+    $activityProps = @{}
+    $newActivity.PSObject.Properties | ForEach-Object { $activityProps[$_.Name] = $_.Value }
+    $activityProps['Url'] = $repo.url
+    $newActivity = [PSCustomObject]$activityProps
     $newActivity
   )
 
