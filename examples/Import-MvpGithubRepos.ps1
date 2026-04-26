@@ -30,9 +30,11 @@ param(
 	$User,
 
 	[Parameter(Mandatory)]
-	# ValidateCount limits the number of values to a maximum of 2 because the MVP activity form only supports
-	# one mandatory primary focus area and one optional secondary focus area. If more than 2 are provided, an error is raised.
-	[ValidateCount(1, 2)]
+	# One or more technology focus areas. The first area will be used as the primary focus area,
+	# and any additional areas will be passed as secondary/additional focus areas to the MVP activity form.
+	[string[]]$TechnologyFocusArea,
+
+	[Parameter(Mandatory)]
 	# ArgumentCompleter provides dynamic tab-completion for this parameter.
 	# The script block executes when user presses Tab and queries the MVP module for available technology areas.
 	# The & operator (call operator) executes a script block within the MicrosoftMvp module's scope to access its internal data.
