@@ -30,8 +30,11 @@ param(
 	$User,
 
 	[Parameter(Mandatory)]
+	# ValidateCount limits the number of values to a maximum of 3: one primary (mandatory) and up to two additional (optional).
+	# If more than 3 are provided, an error is raised.
+	[ValidateCount(1, 3)]
 	# One or more technology focus areas. The first area will be used as the primary focus area,
-	# and any additional areas will be passed as secondary/additional focus areas to the MVP activity form.
+	# and any additional areas (up to 2 more) will be passed as secondary/additional focus areas to the MVP activity form.
 	[string[]]$TechnologyFocusArea,
 
 	[Parameter(Mandatory)]
