@@ -35,15 +35,11 @@ param(
 )
 
 if ($EarliestActivityDate) {
-	if ($EarliestActivityDate -match '^\d{1,2}/\d{1,2}/\d{4}$') {
-		Write-Warning "'-EarliestActivityDate $EarliestActivityDate' is ambiguous (could be MM/DD/YYYY or DD/MM/YYYY). Please use YYYY-MM-DD format."
-		return
-	}
-	if ($EarliestActivityDate -notmatch '^\d{4}\D\d{2}\D\d{2}$') {
+	if ($EarliestActivityDate -notmatch '^\d{4}-\d{2}-\d{2}$') {
 		Write-Warning "'-EarliestActivityDate $EarliestActivityDate' is not a recognized date format. Please use YYYY-MM-DD."
 		return
 	}
-	$earliestDate = [datetime]::Parse(($EarliestActivityDate -replace '\D', '-'))
+	$earliestDate = [datetime]::ParseExact($EarliestActivityDate, 'yyyy-MM-dd', $null)
 } else {
 	$earliestDate = $null
 }
@@ -128,7 +124,8 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 		$repo.description ?? 'No description provided.'
 	}
 
-	$statsSuffix = "`n`n---`nStars: $($repo.stargazers_count) | Forks: $($repo.forks_count) | Branches: $activeBranchCount | Commits: $commitCount"
+	$reach = $repo.stargazers_count + $repo.forks_count
+	$statsSuffix = "`n`n---`nReach: $reach (Stars: $($repo.stargazers_count), Forks: $($repo.forks_count)) | Branches: $activeBranchCount | Commits: $commitCount"
 	$existingActivity = $USING:existingActivities
 	| Where-Object title -EQ $activityTitle
 	| ForEach-Object { Get-MvpActivity -Id $_.id }
@@ -151,7 +148,7 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
       Date                      = $repo.created_at
       EndDate                   = $repo.pushed_at
       Quantity                  = 1
-      Reach                     = $repo.stargazers_count + $repo.forks_count
+      Reach                     = $reach
     }
     $newActivity = New-MvpActivity @newMvpActivityParams
     $newActivity.url = $repo.html_url
@@ -162,7 +159,7 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 		#Update the activity with the latest data
 		$activity.Date = $repo.created_at
 		$activity.DateEnd = $repo.updated_at
-		$activity.Reach = $repo.stargazers_count + $repo.forks_count
+		$activity.Reach = $reach
 		$activity.Description = $baseDescription + $statsSuffix
 		$activity.url = $repo.html_url
 		#Workaround for whatif not working as it is supposed to in parallel
