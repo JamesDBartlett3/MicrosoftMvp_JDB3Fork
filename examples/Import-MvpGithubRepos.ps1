@@ -65,7 +65,7 @@ param(
 
 if ($EarliestActivityDate) {
 	# -notmatch operator performs regex comparison; \d matches digits, {4} means exactly 4 occurrences
-	# This pattern validates YYYY-MM-DD date format - this date format was chosen to eliminate ambiguity across different locales (e.g. MM/DD/YYYY vs DD/MM/YYYY) and to allow easy lexical sorting if needed
+	# This pattern validates YYYY-MM-DD date format in order to eliminate ambiguity across different locales (e.g. MM/DD/YYYY vs DD/MM/YYYY)
 	if ($EarliestActivityDate -notmatch '^\d{4}-\d{2}-\d{2}$') {
 		Write-Warning "'-EarliestActivityDate $EarliestActivityDate' is not a recognized date format. Please use YYYY-MM-DD."
 		return
