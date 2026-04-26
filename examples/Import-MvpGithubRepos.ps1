@@ -94,6 +94,41 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 	$repo = $PSItem
 	$activityTitle = "GitHub: $($repo.name)"
 	Write-Verbose "Processing $activityTitle"
+
+	# Fetch commit count across all branches, deduplicated by SHA
+	$commitHeaders = $USING:headers
+	$earliestDate = $USING:earliestDate
+	$sinceParam = $earliestDate ? "&since=$($earliestDate.ToString('yyyy-MM-ddTHH:mm:ssZ'))" : ''
+
+	$branches = Invoke-RestMethod -Uri "https://api.github.com/repos/$($repo.full_name)/branches?per_page=100" -Headers $commitHeaders -ErrorAction SilentlyContinue
+	$allCommitShas = [System.Collections.Generic.HashSet[string]]::new()
+	$activeBranchCount = 0
+	$authorParam = "&author=$($USING:User)"
+	foreach ($branch in $branches) {
+		$encodedBranch = [Uri]::EscapeDataString($branch.name)
+		$branchCommitUrl = "https://api.github.com/repos/$($repo.full_name)/commits?per_page=100&sha=$encodedBranch$sinceParam$authorParam"
+		$branchHadCommit = $false
+		do {
+			$branchCommits = Invoke-RestMethod -Uri $branchCommitUrl -ResponseHeadersVariable branchRh -Headers $commitHeaders -ErrorAction SilentlyContinue
+			foreach ($c in $branchCommits) {
+				$null = $allCommitShas.Add($c.sha)
+				$branchHadCommit = $true
+			}
+			$branchCommitUrl = if ([string]$branchRh.Link -match '<([^>]+)>; rel="next"') { $matches[1] } else { $null }
+		} while ($branchCommitUrl)
+		if ($branchHadCommit) { $activeBranchCount++ }
+	}
+	$commitCount = $allCommitShas.Count
+
+	$readmeResponse = Invoke-RestMethod -Uri "https://api.github.com/repos/$($repo.full_name)/readme" -Headers $commitHeaders -ErrorAction SilentlyContinue
+	$baseDescription = if ($readmeResponse.content) {
+		$readmeText = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($readmeResponse.content)).Trim()
+		if ($readmeText.Length -gt 750) { $readmeText.Substring(0, 750) + ' [...]' } else { $readmeText }
+	} else {
+		$repo.description ?? 'No description provided.'
+	}
+
+	$statsSuffix = "`n`n---`nStars: $($repo.stargazers_count) | Forks: $($repo.forks_count) | Branches: $activeBranchCount | Commits: $commitCount"
 	$existingActivity = $USING:existingActivities
 	| Where-Object title -EQ $activityTitle
 	| ForEach-Object { Get-MvpActivity -Id $_.id }
@@ -112,11 +147,11 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
       TechnologyFocusArea       = $tfa[0]
       AdditionalTechnologyAreas = $tfa.Count -gt 1 ? $tfa[1..($tfa.Count - 1)] : @()
       TargetAudience            = 'Developer', 'IT Pro'
-      Description               = $repo.description ?? 'No description provided.'
+      Description               = $baseDescription + $statsSuffix
       Date                      = $repo.created_at
       EndDate                   = $repo.pushed_at
       Quantity                  = 1
-      Reach                     = $repo.stargazers_count
+      Reach                     = $repo.stargazers_count + $repo.forks_count
     }
     $newActivity = New-MvpActivity @newMvpActivityParams
     $newActivity.url = $repo.html_url
@@ -127,8 +162,8 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 		#Update the activity with the latest data
 		$activity.Date = $repo.created_at
 		$activity.DateEnd = $repo.updated_at
-		$activity.Reach = $repo.stargazers_count
-		$activity.Description = $repo.description ?? $activity.Description
+		$activity.Reach = $repo.stargazers_count + $repo.forks_count
+		$activity.Description = $baseDescription + $statsSuffix
 		$activity.url = $repo.html_url
 		#Workaround for whatif not working as it is supposed to in parallel
 		if ($WhatIfPreference) {
