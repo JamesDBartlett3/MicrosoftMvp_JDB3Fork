@@ -1,7 +1,27 @@
 #requires -version 7 -Modules MicrosoftMvp
 <#
-.SYNOPSIS
-Updates your MVP profile with your Github repositories. Supports -WhatIf
+	.SYNOPSIS
+	Updates your MVP profile with your Github repositories. Supports -WhatIf
+	.DESCRIPTION
+	Connects to the Github API to retrieve your repositories, then creates or updates corresponding activities on your MVP profile with relevant details like description, stars, forks, and recent activity. You can filter which repos to include based on technology focus area, minimum stars, and recent activity date. The script uses parallel processing for efficiency and supports -WhatIf for safe testing.
+	.PARAMETER User
+	The Github username whose repositories you want to import.
+	.PARAMETER TechnologyFocusArea
+	The primary technology focus area(s) to associate with the imported repositories. You can specify one or two focus areas. If more than two are provided, an error is raised. This parameter also supports dynamic tab-completion of available technology areas from the MVP module.
+	.PARAMETER Filter
+	An optional array of regex patterns to filter repositories by name, description, or topics. If not provided, all repositories are included.
+	.PARAMETER MinimumStars
+	The minimum number of stars a repository must have to be included. Default is 5.
+	.PARAMETER EarliestActivityDate
+	An optional date in YYYY-MM-DD format to filter repositories based on recent activity. Only repositories with commits since this date will be included. If not provided, all repositories are included regardless of activity.
+	.PARAMETER ThrottleLimit
+	The maximum number of repositories to process in parallel. Default is 20. Adjust based on your system's capabilities and the number of repositories being imported.
+	.EXAMPLE
+	PS> .\Import-MvpGithubRepos.ps1 -User "octocat" -TechnologyFocusArea "Cloud" -MinimumStars 10 -EarliestActivityDate "2023-01-01"
+	This command imports repositories from the user "octocat" that have at least 10 stars and have had commits since January 1, 2023. The imported activities will be tagged with the "Cloud" technology focus area.
+	.NOTES
+	Original author: Justin Grote (@JustinGrote)
+	Enhancements by: James Bartlett (@JamesDBartlett3)
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -10,6 +30,9 @@ param(
 	$User,
 
 	[Parameter(Mandatory)]
+	# ValidateCount limits the number of values to a maximum of 2 because the MVP activity form only supports
+	# one mandatory primary focus area and one optional secondary focus area. If more than 2 are provided, an error is raised.
+	[ValidateCount(1, 2)]
 	# ArgumentCompleter provides dynamic tab-completion for this parameter.
 	# The script block executes when user presses Tab and queries the MVP module for available technology areas.
 	# The & operator (call operator) executes a script block within the MicrosoftMvp module's scope to access its internal data.
