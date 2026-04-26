@@ -126,6 +126,22 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 
 	$reach = $repo.stargazers_count + $repo.forks_count
 	$statsSuffix = "`n`n---`nReach: $reach (Stars: $($repo.stargazers_count), Forks: $($repo.forks_count)) | Branches: $activeBranchCount | Commits: $commitCount"
+
+	$readmeImageUrl = ''
+	$repoPageHtml = Invoke-RestMethod -Uri $repo.html_url -Headers $commitHeaders -ErrorAction SilentlyContinue
+	if ($repoPageHtml -match '<meta property="og:image" content="([^"]+)"') {
+		$readmeImageUrl = $matches[1]
+	}
+	if ($readmeResponse.content) {
+		$rawBase = "https://raw.githubusercontent.com/$($repo.full_name)/$($repo.default_branch)"
+		$mdMatch  = if ($readmeText -match '(?s)!\[[^\]]*\]\(([^)\s]+)') { @{ idx = $readmeText.IndexOf($matches[0]); src = $matches[1] } } else { $null }
+		$htmlMatch = if ($readmeText -match '(?s)<img[^>]+src="([^"]+)"') { @{ idx = $readmeText.IndexOf($matches[0]); src = $matches[1] } } else { $null }
+		$firstMatch = @($mdMatch, $htmlMatch) | Where-Object { $_ } | Sort-Object { $_.idx } | Select-Object -First 1
+		if ($firstMatch) {
+			$imgSrc = $firstMatch.src
+			$readmeImageUrl = if ($imgSrc -match '^https?://') { $imgSrc } else { "$rawBase/" + $imgSrc.TrimStart('/') }
+		}
+	}
 	$existingActivity = $USING:existingActivities
 	| Where-Object title -EQ $activityTitle
 	| ForEach-Object { Get-MvpActivity -Id $_.id }
@@ -152,6 +168,7 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
     }
     $newActivity = New-MvpActivity @newMvpActivityParams
     $newActivity.url = $repo.html_url
+    $newActivity.imageUrl = $readmeImageUrl
     $newActivity
   )
 
@@ -162,6 +179,7 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 		$activity.Reach = $reach
 		$activity.Description = $baseDescription + $statsSuffix
 		$activity.url = $repo.html_url
+		$activity.imageUrl = $readmeImageUrl
 		#Workaround for whatif not working as it is supposed to in parallel
 		if ($WhatIfPreference) {
 			Write-Host "WhatIf: Updating repository '$activityTitle':"
