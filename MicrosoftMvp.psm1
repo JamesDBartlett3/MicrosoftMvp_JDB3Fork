@@ -34,6 +34,7 @@ class MvpActivity {
 	[int]$numberOfSessions
 	[int]$numberOfViews
 	[int]$onDemandViews
+	[string]$parentEventId
 }
 Update-TypeData -TypeName 'MvpActivity' -DefaultDisplayPropertySet 'id', 'title', 'activityTypeName', 'date' -Force
 
@@ -96,6 +97,7 @@ class TargetAudience: IValidateSetValuesGenerator {
 #Defaults
 $SCRIPT:Tenant = 'MVP'
 [string]$SCRIPT:BaseUri = 'https://mavenapi-prod.azurewebsites.net/api/'
+$SCRIPT:ClientId = 'e83f495c-dfa2-48e2-b1d9-3680b16e74e4'
 
 #This is used to track the context of the logged in user across runspaces to enable easy parallelization
 
@@ -228,7 +230,7 @@ function Connect-Mvp {
 		return
 	}
 
-	$clientId = 'e83f495c-dfa2-48e2-b1d9-3680b16e74e4'
+	$clientId = $SCRIPT:ClientId
 
 	# Determine auth method: use WebView2 on Windows with PSAuthClient, otherwise browser flow
 	$useBrowserAuth = $UseDefaultBrowser -or
@@ -286,6 +288,7 @@ function Connect-Mvp {
 		GraphUser   = $me
 		GraphExpire = (Get-Date).AddSeconds($graphContext.expires_in - 60)
 		Mvp         = $mvpToken
+		MvpExpire   = (Get-Date).AddSeconds($mvpToken.expires_in - 60)
 		Tenant      = $Tenant
 		Data        = @{}
 	}
@@ -302,6 +305,24 @@ function Connect-Mvp {
 function Assert-MvpConnection {
 	if ($null -eq [MicrosoftMvp.UserProfile]::Context) {
 		ThrowCmdletError 'You must connect to the MVP API first using Connect-Mvp'
+	}
+	$ctx = Get-MvpContext
+	if (-not $ctx.MvpExpire -or (Get-Date) -gt $ctx.MvpExpire) {
+		Write-Verbose 'MVP: Access token expired, refreshing...'
+		$refreshToken = if ($ctx.Mvp.refresh_token) { $ctx.Mvp.refresh_token } else { $ctx.Graph.refresh_token }
+		$newMvpToken = Invoke-RestMethod -Uri 'https://login.microsoftonline.com/common/oauth2/v2.0/token' -Method Post -Body @{
+			client_id     = $SCRIPT:ClientId
+			refresh_token = $refreshToken
+			scope         = 'api://6dabb447-da84-4b4c-b68f-99f5215b2ca7/User.All openid profile offline_access'
+			grant_type    = 'refresh_token'
+			client_info   = 1
+		} -Headers @{
+			Origin  = 'https://mvp.microsoft.com'
+			Referer = 'https://mvp.microsoft.com'
+		}
+		$ctx.Mvp = $newMvpToken
+		$ctx.MvpExpire = (Get-Date).AddSeconds($newMvpToken.expires_in - 60)
+		Write-Verbose 'MVP: Token refreshed successfully'
 	}
 }
 
