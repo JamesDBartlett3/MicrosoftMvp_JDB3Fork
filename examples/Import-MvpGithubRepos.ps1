@@ -146,6 +146,10 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 	} else {
 		$repo.description ?? 'No description provided.'
 	}
+
+	$reach = $repo.stargazers_count + $repo.forks_count
+	$statsSuffix = "`n`n---`nReach: $reach (Stars: $($repo.stargazers_count), Forks: $($repo.forks_count)) | Branches: $activeBranchCount | Commits: $commitCount"
+
 	$existingActivity = $USING:existingActivities
 	| Where-Object title -EQ $activityTitle
 	| ForEach-Object { Get-MvpActivity -Id $_.id }
