@@ -117,15 +117,6 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 	$commitCount = $allCommitShas.Count
 
 	$readmeResponse = Invoke-RestMethod -Uri "https://api.github.com/repos/$($repo.full_name)/readme" -Headers $commitHeaders -ErrorAction SilentlyContinue
-	$baseDescription = if ($readmeResponse.content) {
-		$readmeText = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($readmeResponse.content)).Trim()
-		if ($readmeText.Length -gt 750) { $readmeText.Substring(0, 750) + ' [...]' } else { $readmeText }
-	} else {
-		$repo.description ?? 'No description provided.'
-	}
-
-	$reach = $repo.stargazers_count + $repo.forks_count
-	$statsSuffix = "`n`n---`nReach: $reach (Stars: $($repo.stargazers_count), Forks: $($repo.forks_count)) | Branches: $activeBranchCount | Commits: $commitCount"
 
 	$readmeImageUrl = ''
 	$repoPageHtml = Invoke-RestMethod -Uri $repo.html_url -Headers $commitHeaders -ErrorAction SilentlyContinue
@@ -134,13 +125,26 @@ $targetRepos | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 	}
 	if ($readmeResponse.content) {
 		$rawBase = "https://raw.githubusercontent.com/$($repo.full_name)/$($repo.default_branch)"
-		$mdMatch  = if ($readmeText -match '(?s)!\[[^\]]*\]\(([^)\s]+)') { @{ idx = $readmeText.IndexOf($matches[0]); src = $matches[1] } } else { $null }
-		$htmlMatch = if ($readmeText -match '(?s)<img[^>]+src="([^"]+)"') { @{ idx = $readmeText.IndexOf($matches[0]); src = $matches[1] } } else { $null }
+		$readmeTextRaw = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($readmeResponse.content)).Trim()
+		$mdMatch   = if ($readmeTextRaw -match '(?s)!\[[^\]]*\]\(([^)\s]+)') { @{ idx = $readmeTextRaw.IndexOf($matches[0]); src = $matches[1] } } else { $null }
+		$htmlMatch = if ($readmeTextRaw -match '(?s)<img[^>]+src="([^"]+)"') { @{ idx = $readmeTextRaw.IndexOf($matches[0]); src = $matches[1] } } else { $null }
 		$firstMatch = @($mdMatch, $htmlMatch) | Where-Object { $_ } | Sort-Object { $_.idx } | Select-Object -First 1
 		if ($firstMatch) {
 			$imgSrc = $firstMatch.src
 			$readmeImageUrl = if ($imgSrc -match '^https?://') { $imgSrc } else { "$rawBase/" + $imgSrc.TrimStart('/') }
 		}
+	}
+
+	$baseDescription = if ($readmeResponse.content) {
+		$readmeText = $readmeTextRaw
+		$readmeText = $readmeText -replace '\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)', ''  # Linked Markdown images: [![alt](img)](link)
+		$readmeText = $readmeText -replace '!\[[^\]]*\]\([^)]*\)', ''               # Standalone Markdown images: ![alt](url)
+		$readmeText = $readmeText -replace '(?s)<a[^>]*>\s*<img[^>]+/?>\s*</a>', '' # Linked HTML images: <a><img/></a>
+		$readmeText = $readmeText -replace '(?s)<img[^>]+/?>', ''                   # Standalone HTML img tags
+		$readmeText = $readmeText.Trim()
+		if ($readmeText.Length -gt 750) { $readmeText.Substring(0, 750) + ' [...]' } else { $readmeText }
+	} else {
+		$repo.description ?? 'No description provided.'
 	}
 	$existingActivity = $USING:existingActivities
 	| Where-Object title -EQ $activityTitle
