@@ -34,6 +34,7 @@ class MvpActivity {
 	[int]$numberOfSessions
 	[int]$numberOfViews
 	[int]$onDemandViews
+	[Nullable[int]]$parentEventId
 }
 Update-TypeData -TypeName 'MvpActivity' -DefaultDisplayPropertySet 'id', 'title', 'activityTypeName', 'date' -Force
 

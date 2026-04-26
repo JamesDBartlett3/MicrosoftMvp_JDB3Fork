@@ -248,7 +248,7 @@ $existingActivities = Search-MvpActivitySummary -First 10000
 | Where-Object type -Like 'Speaker*'
 
 $sessionsToUpdate | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
-	Import-Module $USING:mvpModulePath
+	Import-Module -Force $USING:mvpModulePath
 	$VerbosePreference = $USING:VerbosePreference
 	$WhatIfPreference = $USING:WhatIfPreference
 	$DebugPreference = $USING:DebugPreference
@@ -257,7 +257,7 @@ $sessionsToUpdate | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 	$activityTitle = $session.Name
 	$existingActivity = $USING:existingActivities
 	| Where-Object title -EQ $activityTitle
-	| Get-MvpActivity
+	| ForEach-Object { Get-MvpActivity -Id $_.id }
 	| Where-Object url -EQ $session.Url
 
 	if ($existingActivity.count -gt 1) {
@@ -265,7 +265,7 @@ $sessionsToUpdate | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
 		continue
 	}
 
-	$activity = $existingActivity ? ($existingActivity | Get-MvpActivity) : $(
+	$activity = $existingActivity ? $existingActivity : $(
 		$tfa = $session.TechFocusArea
 		$activityParams = @{
 			Title                     = $activityTitle
